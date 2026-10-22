@@ -1,0 +1,99 @@
+version: '3.8'
+
+services:
+  # ---- Инфраструктура ----
+  user-db:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: anvil_users
+    volumes:
+      - user-db-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER} -d anvil_users"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  schedule-db:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: anvil_schedules
+    volumes:
+      - schedule-db-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER} -d anvil_schedules"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  exercise-db:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: anvil_exercises
+    volumes:
+      - exercise-db-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER} -d anvil_exercises"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  # ---- Микросервисы ----
+  user-service:
+    build:
+      context: .
+      dockerfile: src/Anvil.UserService/Dockerfile
+    environment:
+      - ConnectionStrings__Default=Host=user-db;Database=anvil_users;Username=${POSTGRES_USER};Password=${POSTGRES_PASSWORD}
+    depends_on:
+      user-db:
+        condition: service_healthy
+
+  schedule-service:
+    build:
+      context: .
+      dockerfile: src/Anvil.ScheduleService/Dockerfile
+    environment:
+      - ASPNETCORE_URLS=http://+:8080
+      - ConnectionStrings__Default=Host=schedule-db;Database=anvil_schedules;Username=${POSTGRES_USER};Password=${POSTGRES_PASSWORD}
+    depends_on:
+      schedule-db:
+        condition: service_healthy
+
+  exercise-service:
+    build:
+      context: .
+      dockerfile: src/Anvil.ExerciseService/Dockerfile
+    environment:
+      - ASPNETCORE_URLS=http://+:8080
+      - ConnectionStrings__Default=Host=exercise-db;Database=anvil_exercises;Username=${POSTGRES_USER};Password=${POSTGRES_PASSWORD}
+    depends_on:
+      exercise-db:
+        condition: service_healthy
+
+  sync-gateway:
+    build:
+      context: .
+      dockerfile: src/Anvil.SyncGateway/Dockerfile
+    environment:
+      - ASPNETCORE_URLS=http://+:8080
+      - UserService__GrpcUrl=http://user-service:8080
+      - ScheduleService__BaseUrl=http://schedule-service:8080
+      - ExerciseService__BaseUrl=http://exercise-service:8080
+    ports:
+      - "5000:8080"
+    depends_on:
+      - user-service
+      - schedule-service
+      - exercise-service
+
+volumes:
+  user-db-data:
+  schedule-db-data:
+  exercise-db-data:

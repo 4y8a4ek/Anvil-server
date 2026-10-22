@@ -1,0 +1,6 @@
+.env
+/src/*/bin
+/src/*/obj
+/src/*/Migrations
+/src/*/appsettings.json
+/*.sql

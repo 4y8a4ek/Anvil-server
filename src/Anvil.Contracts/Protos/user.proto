@@ -1,0 +1,15 @@
+syntax = "proto3";
+
+option csharp_namespace = "Anvil.Contracts.Protos";
+
+service UserService {
+  rpc CheckUserExists (UserRequest) returns (UserExistsResponse);
+}
+
+message UserRequest {
+  string id = 1;
+}
+
+message UserExistsResponse {
+  bool exists = 1;
+}
